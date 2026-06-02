@@ -1,0 +1,21 @@
+name: Daily TikTok Video
+on:
+  schedule:
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install TikTokApi Pillow requests instagrapi
+      - name: Post to TikTok
+        run: python tiktok_automation.py
+        env:
+          TIKTOK_USERNAME: ${{ secrets.TIKTOK_USERNAME }}
+          TIKTOK_PASSWORD: ${{ secrets.TIKTOK_PASSWORD }}
+          TIKTOK_EMAIL: ${{ secrets.TIKTOK_EMAIL }}
