@@ -116,3 +116,26 @@ def post_story_job(story_index: int):
     media = cl.photo_upload_to_story(path)
     logging.info(f"Story posted: {media.pk}")
     os.unlink(path)
+
+
+if __name__ == "__main__":
+    import sys
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    if not IG_USERNAME or not IG_PASSWORD:
+        logging.error("IG_USERNAME or IG_PASSWORD not set!")
+        sys.exit(1)
+
+    mode = sys.argv[1] if len(sys.argv) > 1 else "photo"
+    logging.info(f"Starting instagram_auto.py mode={mode} user={IG_USERNAME}")
+
+    if mode == "photo":
+        post_photo_job()
+    elif mode == "story":
+        # Use random story index based on current hour so each run picks different theme
+        import datetime
+        idx = datetime.datetime.utcnow().hour + random.randint(0, 11)
+        post_story_job(idx)
+    else:
+        logging.error(f"Unknown mode: {mode}")
+        sys.exit(1)
