@@ -105,14 +105,22 @@ def post_to_tiktok(video_path, caption):
 
         if not is_logged_in:
             print("\n" + "="*55)
-            print("  PLEASE LOG IN MANUALLY IN THE BROWSER!")
-            print("  1. Click 'השתמש/י בטלפון / כתובת דוא\"ל / שם משתמש'")
-            print("  2. Click 'כניסה באמצעות אמייל / שם משתמש'")
-            print("  3. Enter email: amitaiwork1@gmail.com")
-            print("  4. Enter password: Amitai2612")
-            print("  5. Complete CAPTCHA if shown")
-            print("  WAITING 120 SECONDS FOR YOU TO LOGIN...")
+            print("  PLEASE LOG IN WITH FACEBOOK IN THE BROWSER!")
+            print("  1. Click 'להמשיך באמצעות Facebook'")
+            print("  2. Approve in the Facebook popup")
+            print("  3. Wait - script continues automatically")
+            print("  WAITING 120 SECONDS...")
             print("="*55)
+            # Click Facebook button automatically
+            try:
+                page.click("text=Facebook", timeout=5000)
+                print("  Clicked Facebook button!")
+            except:
+                try:
+                    page.click("[class*='facebook'], [class*='Facebook']", timeout=3000)
+                    print("  Clicked Facebook!")
+                except:
+                    print("  Please click 'Facebook' manually in the browser")
 
             # Wait for actual login - check for upload page element
             logged_in = False
