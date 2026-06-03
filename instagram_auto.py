@@ -1,72 +1,71 @@
 # -*- coding: utf-8 -*-
 """
 Instagram automation for Vita Luxe.
-Uses SDXL Lightning (free HuggingFace Space) to generate consistent character images.
+Consistent character: dark wavy hair, mixed ethnicity, 25yo, luxury fitness.
 """
-import os, json, logging, urllib.request, urllib.parse, random, sys, tempfile, time
+import os, json, logging, urllib.request, random, sys, tempfile, time, subprocess
 from pathlib import Path
 
 IG_USERNAME = os.environ.get("IG_USERNAME", "")
 IG_PASSWORD = os.environ.get("IG_PASSWORD", "")
 
-# ── Vita Luxe character base prompt ─────────────────────────────────────────
-VITA_BASE = (
-    "beautiful mixed ethnicity woman 25 years old, long dark wavy hair, "
-    "tan skin, fit athletic body, luxury lifestyle, "
-    "professional photography, 4K, realistic, instagram influencer"
+# ── Vita Luxe - very specific face/character prompt ──────────────────────────
+VITA_FACE = (
+    "stunning woman, 25 years old, mixed latina mediterranean ethnicity, "
+    "long dark wavy brown hair, olive tan skin, brown almond eyes, "
+    "high cheekbones, full lips, perfect symmetrical face, "
+    "fit athletic toned body, luxury fitness influencer, "
+    "photorealistic, 8K, sharp focus, professional photography"
 )
 
+NEG = "ugly, deformed, blurry, bad anatomy, extra limbs, disfigured, low quality, cartoon, anime, drawing"
+
 PHOTO_THEMES = [
-    f"{VITA_BASE}, gym workout, athletic outfit, mirror selfie, natural lighting",
-    f"{VITA_BASE}, yoga on beach, golden hour, peaceful expression",
-    f"{VITA_BASE}, luxury resort pool, swimwear, vacation lifestyle",
-    f"{VITA_BASE}, morning coffee, luxury apartment, cozy morning routine",
-    f"{VITA_BASE}, outdoor run, athletic wear, sunrise, motion",
-    f"{VITA_BASE}, healthy meal prep, kitchen, colorful vegetables, clean eating",
-    f"{VITA_BASE}, luxury hotel room, morning stretching, white sheets",
-    f"{VITA_BASE}, outdoor cafe, sunglasses, relaxed fashion, city",
+    f"{VITA_FACE}, golden hour beach, sports bra, confident pose, cinematic",
+    f"{VITA_FACE}, luxury gym mirror selfie, athletic outfit, warm lighting",
+    f"{VITA_FACE}, rooftop infinity pool, sunset, glamour lifestyle",
+    f"{VITA_FACE}, morning yoga outdoor, golden light, peaceful serene",
+    f"{VITA_FACE}, luxury hotel suite, white robe, morning routine elegance",
 ]
 
 STORY_THEMES = [
-    f"{VITA_BASE}, selfie, gym mirror, athletic wear, vertical portrait",
-    f"{VITA_BASE}, smoothie bowl, healthy breakfast, close up, lifestyle",
-    f"{VITA_BASE}, beach sunset, relaxed, vertical shot, travel",
-    f"{VITA_BASE}, spa day, skincare routine, natural look, bathroom",
-    f"{VITA_BASE}, night workout, gym lights, determined, vertical",
-    f"{VITA_BASE}, casual outfit, city street, fashion, vertical portrait",
-    f"{VITA_BASE}, meditation, rooftop, morning light, peaceful, vertical",
-    f"{VITA_BASE}, luxury shopping, fashion bags, lifestyle, vertical",
+    f"{VITA_FACE}, close up face portrait, gym background, natural light, vertical",
+    f"{VITA_FACE}, beach selfie, golden hour, vertical portrait, candid smile",
+    f"{VITA_FACE}, workout outfit, gym, mirror selfie, vertical close up",
+    f"{VITA_FACE}, luxury resort, poolside, vertical lifestyle photo",
+    f"{VITA_FACE}, morning coffee, sunlit room, natural beauty, vertical portrait",
+]
+
+REEL_THEMES = [
+    f"{VITA_FACE}, dynamic fitness pose, gym, dramatic lighting, action shot",
+    f"{VITA_FACE}, beachside at sunrise, athletic wear, movement, cinematic",
+    f"{VITA_FACE}, luxury penthouse view, fashion, confident, editorial",
+    f"{VITA_FACE}, outdoor workout, park, athletic, energetic pose",
+    f"{VITA_FACE}, poolside luxury, summer vibes, glamorous, lifestyle",
 ]
 
 CAPTIONS = [
-    "Rise and shine. Make today count. 🌅",
-    "Your body is your temple. Treat it like one. 💪",
-    "Travel. Train. Thrive. Repeat. ✈️",
-    "Living proof that consistency changes everything. 🔥",
-    "Luxury is a mindset, not a price tag. 💎",
-    "Strong women build each other up. Tag yours below. 👇",
-    "This view though. Never taking it for granted. 🌍",
-    "Wellness is not a destination. It's a daily choice. 🧘",
-    "Every rep, every mile, every choice matters. ⚡",
-    "She believed she could, so she did. 🌟",
+    "Rise and grind. 💪 Every rep counts.\n\n" ,
+    "Golden hour energy only. ✨\n\n",
+    "Luxury is a lifestyle, not a price tag. 💎\n\n",
+    "She trained. She glowed. She conquered. 🔥\n\n",
+    "Your body. Your rules. Your results. 👑\n\n",
 ]
 
 HASHTAGS = (
-    "#LuxuryFitness #WellnessLifestyle #FitTravel #HealthyLiving "
-    "#MotivationMonday #GymLife #TravelGoals #WellnessInspo "
-    "#ActiveLifestyle #FitnessJourney #LuxuryTravel #GlowUp "
-    "#VitaLuxe #FitnessGirls #HealthyGirl"
+    "#VitaLuxe #LuxuryFitness #FitnessGirl #WellnessLifestyle "
+    "#FitBody #GymLife #HealthyLiving #FitnessMotivation "
+    "#BodyGoals #FitnessCommunity #ActiveLifestyle #GlowUp"
 )
 
 SDXL_BASE = "https://ap123-sdxl-lightning.hf.space"
 
 
 def _generate_vita_image(prompt: str) -> bytes:
-    """Generate image via SDXL Lightning HuggingFace Space (free)."""
+    """Generate Vita Luxe image via SDXL Lightning (free, no API key)."""
     session = "vita" + str(random.randint(100000, 999999))
     headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
 
-    # Step 1: Join the generation queue
     payload = json.dumps({
         "data": [prompt, "4-Step"],
         "event_data": None,
@@ -78,10 +77,8 @@ def _generate_vita_image(prompt: str) -> bytes:
     req = urllib.request.Request(SDXL_BASE + "/queue/join",
                                  data=payload, headers=headers, method="POST")
     with urllib.request.urlopen(req, timeout=20) as r:
-        join_resp = json.loads(r.read())
-    logging.info(f"  Queue joined: {join_resp.get('event_id', '?')[:16]}...")
+        json.loads(r.read())
 
-    # Step 2: Poll for result via SSE stream
     req2 = urllib.request.Request(
         SDXL_BASE + f"/queue/data?session_hash={session}",
         headers={"User-Agent": "Mozilla/5.0", "Accept": "text/event-stream"},
@@ -91,10 +88,8 @@ def _generate_vita_image(prompt: str) -> bytes:
         buffer = b""
         while True:
             chunk = r.read(8192)
-            if not chunk:
-                break
+            if not chunk: break
             buffer += chunk
-            # Parse SSE events
             for line in buffer.split(b"\n"):
                 if line.startswith(b"data:"):
                     raw = line[5:].strip()
@@ -102,22 +97,17 @@ def _generate_vita_image(prompt: str) -> bytes:
                         try:
                             event = json.loads(raw)
                             if event.get("msg") == "process_completed":
-                                output = event.get("output", {}).get("data", [])
-                                if output and isinstance(output[0], dict):
-                                    img_url = output[0].get("url")
+                                out = event.get("output", {}).get("data", [])
+                                if out and isinstance(out[0], dict):
+                                    img_url = out[0].get("url")
                         except Exception:
                             pass
-            if img_url:
-                break
-            if len(buffer) > 500000:
+            if img_url or len(buffer) > 500000:
                 break
 
     if not img_url:
-        raise RuntimeError("No image URL returned from SDXL Lightning")
+        raise RuntimeError("No image URL from SDXL Lightning")
 
-    logging.info(f"  Image generated: {img_url[-40:]}")
-
-    # Step 3: Download the image
     req3 = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req3, timeout=30) as r:
         img_bytes = r.read()
@@ -125,7 +115,61 @@ def _generate_vita_image(prompt: str) -> bytes:
     if len(img_bytes) < 50000:
         raise RuntimeError(f"Image too small: {len(img_bytes)} bytes")
 
+    logging.info(f"  Image generated: {len(img_bytes)//1024}KB")
     return img_bytes
+
+
+def _make_reel_video(img_bytes: bytes) -> str:
+    """Create a 15-second reel video from image with Ken Burns zoom effect."""
+    try:
+        from moviepy.editor import ImageClip, CompositeVideoClip
+        import numpy as np
+        from PIL import Image
+        import io
+
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        img = img.resize((1080, 1920), Image.LANCZOS)
+
+        tmp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+        img.save(tmp_img.name, "JPEG", quality=95)
+        tmp_img.close()
+
+        clip = ImageClip(tmp_img.name, duration=15)
+
+        def zoom(t):
+            scale = 1 + 0.05 * (t / 15)
+            return scale
+
+        zoomed = clip.resize(zoom)
+        zoomed = zoomed.set_position("center")
+
+        final = CompositeVideoClip([zoomed], size=(1080, 1920))
+        final = final.set_duration(15)
+
+        out = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        final.write_videofile(out.name, fps=30, codec="libx264",
+                               audio=False, logger=None, preset="ultrafast")
+        os.unlink(tmp_img.name)
+        return out.name
+
+    except ImportError:
+        # Fallback: ffmpeg direct approach
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        img = img.resize((1080, 1920), Image.LANCZOS)
+        tmp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+        img.save(tmp_img.name, "JPEG", quality=95)
+        tmp_img.close()
+        out = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+        subprocess.run([
+            "ffmpeg", "-loop", "1", "-i", tmp_img.name,
+            "-vf", "scale=1080:1920,zoompan=z='min(zoom+0.0015,1.5)':d=450:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920",
+            "-t", "15", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-y", out.name
+        ], capture_output=True)
+        os.unlink(tmp_img.name)
+        return out.name
 
 
 def _ig_login():
@@ -136,27 +180,38 @@ def _ig_login():
     if session_file.exists():
         logging.info("Loading saved Instagram session...")
         cl.load_settings(session_file)
-    else:
-        logging.info("No session file, doing fresh login...")
     cl.login(IG_USERNAME, IG_PASSWORD)
     return cl
 
 
-def _save_tmp(data: bytes, suffix=".jpg") -> str:
+def _save_tmp(data: bytes, suffix=".png") -> str:
     f = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     f.write(data)
     f.close()
     return f.name
 
 
+def delete_recent_stories():
+    """Delete all current stories."""
+    cl = _ig_login()
+    try:
+        user_id = cl.user_id_from_username(IG_USERNAME.split("@")[0]) if "@" in IG_USERNAME else cl.user_id
+        stories = cl.user_stories(user_id)
+        logging.info(f"Found {len(stories)} stories to delete")
+        for story in stories:
+            cl.story_delete(story.pk)
+            logging.info(f"  Deleted story {story.pk}")
+            time.sleep(1)
+    except Exception as e:
+        logging.warning(f"Could not delete stories: {e}")
+
+
 def post_photo_job():
-    """Post a daily Vita Luxe photo to Instagram."""
     theme = random.choice(PHOTO_THEMES)
-    logging.info(f"Generating Vita Luxe photo: {theme[:60]}...")
+    logging.info(f"Generating Vita Luxe photo...")
     img  = _generate_vita_image(theme)
-    path = _save_tmp(img, suffix=".png")
-    caption = random.choice(CAPTIONS) + "\n\n" + HASHTAGS
-    logging.info(f"Image ready: {len(img)//1024}KB | Posting to Instagram...")
+    path = _save_tmp(img)
+    caption = random.choice(CAPTIONS) + HASHTAGS
     cl    = _ig_login()
     media = cl.photo_upload(path, caption)
     logging.info(f"Photo posted! ID: {media.pk}")
@@ -164,16 +219,27 @@ def post_photo_job():
 
 
 def post_story_job():
-    """Post a Vita Luxe story to Instagram."""
     theme = random.choice(STORY_THEMES)
-    logging.info(f"Generating Vita Luxe story: {theme[:60]}...")
+    logging.info(f"Generating Vita Luxe story...")
     img  = _generate_vita_image(theme)
-    path = _save_tmp(img, suffix=".png")
-    logging.info(f"Story ready: {len(img)//1024}KB | Posting to Instagram...")
+    path = _save_tmp(img)
     cl    = _ig_login()
     media = cl.photo_upload_to_story(path)
     logging.info(f"Story posted! ID: {media.pk}")
     os.unlink(path)
+
+
+def post_reel_job():
+    theme = random.choice(REEL_THEMES)
+    logging.info(f"Generating Vita Luxe reel...")
+    img  = _generate_vita_image(theme)
+    logging.info("Creating video...")
+    video_path = _make_reel_video(img)
+    caption = random.choice(CAPTIONS) + HASHTAGS
+    cl    = _ig_login()
+    media = cl.clip_upload(video_path, caption)
+    logging.info(f"Reel posted! ID: {media.pk}")
+    os.unlink(video_path)
 
 
 if __name__ == "__main__":
@@ -190,6 +256,10 @@ if __name__ == "__main__":
         post_photo_job()
     elif mode == "story":
         post_story_job()
+    elif mode == "reel":
+        post_reel_job()
+    elif mode == "delete_stories":
+        delete_recent_stories()
     else:
         logging.error(f"Unknown mode: {mode}")
         sys.exit(1)
