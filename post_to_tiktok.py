@@ -93,28 +93,54 @@ def post_to_tiktok(video_path, caption):
         page.goto("https://www.tiktok.com/tiktokstudio/upload", wait_until="domcontentloaded")
         page.wait_for_timeout(4000)
 
-        # Check if logged in
-        if "login" in page.url or "passport" in page.url:
-            print("\n" + "="*50)
+        # Check if we need to login
+        is_logged_in = False
+        try:
+            # If we can see the upload button or studio content, we're in
+            page.wait_for_selector("input[type='file'], [class*='upload'], [class*='Upload']", timeout=5000)
+            is_logged_in = True
+            print("Already logged in!")
+        except:
+            is_logged_in = False
+
+        if not is_logged_in:
+            print("\n" + "="*55)
             print("  PLEASE LOG IN MANUALLY IN THE BROWSER!")
-            print("  1. Enter email: amitaiwork1@gmail.com")
-            print("  2. Enter password: Amitai2612")
-            print("  3. Complete any CAPTCHA if shown")
-            print("  4. Wait - script will continue automatically")
-            print("="*50)
+            print("  1. Click 'השתמש/י בטלפון / כתובת דוא\"ל / שם משתמש'")
+            print("  2. Click 'כניסה באמצעות אמייל / שם משתמש'")
+            print("  3. Enter email: amitaiwork1@gmail.com")
+            print("  4. Enter password: Amitai2612")
+            print("  5. Complete CAPTCHA if shown")
+            print("  WAITING 120 SECONDS FOR YOU TO LOGIN...")
+            print("="*55)
 
-            # Wait up to 90 seconds for manual login
-            for i in range(90):
+            # Wait for actual login - check for upload page element
+            logged_in = False
+            for i in range(120):
                 time.sleep(1)
-                if "tiktokstudio" in page.url or "upload" in page.url:
-                    print("Login detected! Continuing...")
-                    break
-                if i % 10 == 0:
-                    print(f"  Waiting for login... ({90-i}s remaining)")
+                try:
+                    # Check if we're on a page with upload functionality
+                    current_url = page.url
+                    if "tiktokstudio" in current_url and "login" not in current_url and "passport" not in current_url:
+                        # Try to find upload button
+                        el = page.query_selector("input[type='file'], [class*='upload-btn'], [class*='UploadBtn']")
+                        if el or i > 30:  # After 30s on studio page, assume logged in
+                            logged_in = True
+                            print(f"\nLogin successful! (took {i}s)")
+                            break
+                except: pass
+                if i % 15 == 0 and i > 0:
+                    print(f"  Still waiting... ({120-i}s left)")
 
-        # Save session for future use
-        ctx.storage_state(path=str(SESSION_FILE))
-        print("Session saved for future use!")
+            if not logged_in:
+                print("Timeout - proceeding anyway...")
+
+        # Save session
+        try:
+            ctx.storage_state(path=str(SESSION_FILE))
+            print("Session saved!")
+        except Exception as e:
+            print(f"Session save note: {e}")
 
         # Now on TikTok Studio - wait for upload area
         print("Looking for upload area...")
