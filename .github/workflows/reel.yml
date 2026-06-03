@@ -1,5 +1,8 @@
-name: Post Reel
+name: Viral Reels
 on:
+  schedule:
+    - cron: "0 9 * * *"
+    - cron: "0 15 * * *"
   workflow_dispatch:
 jobs:
   reel:
@@ -10,10 +13,10 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg --fix-missing
-      - name: Install python deps
-        run: pip install instagrapi Pillow requests
-      - name: Post reel
+        run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg --fix-missing -qq
+      - name: Install deps
+        run: pip install instagrapi Pillow requests -q
+      - name: Post viral reel
         run: python instagram_auto.py reel
         env:
           IG_USERNAME: ${{ secrets.IG_USERNAME }}
