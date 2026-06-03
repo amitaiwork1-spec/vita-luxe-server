@@ -9,39 +9,40 @@ from pathlib import Path
 IG_USERNAME = os.environ.get("IG_USERNAME", "")
 IG_PASSWORD = os.environ.get("IG_PASSWORD", "")
 
-# ── Vita Luxe - very specific face/character prompt ──────────────────────────
-VITA_FACE = (
-    "stunning woman, 25 years old, mixed latina mediterranean ethnicity, "
-    "long dark wavy brown hair, olive tan skin, brown almond eyes, "
-    "high cheekbones, full lips, perfect symmetrical face, "
-    "fit athletic toned body, luxury fitness influencer, "
-    "photorealistic, 8K, sharp focus, professional photography"
+# ── Vita Luxe - ultra realistic photography prompts ──────────────────────────
+VITA_BASE = (
+    "RAW photograph, DSLR, 25 year old woman, long wavy dark brown hair, "
+    "natural olive skin with pores, athletic toned body, "
+    "Sony A7 85mm f/1.4, shallow depth of field, film grain, "
+    "candid natural expression, hyperrealistic, no filter"
 )
 
-NEG = "ugly, deformed, blurry, bad anatomy, extra limbs, disfigured, low quality, cartoon, anime, drawing"
-
 PHOTO_THEMES = [
-    f"{VITA_FACE}, golden hour beach, sports bra, confident pose, cinematic",
-    f"{VITA_FACE}, luxury gym mirror selfie, athletic outfit, warm lighting",
-    f"{VITA_FACE}, rooftop infinity pool, sunset, glamour lifestyle",
-    f"{VITA_FACE}, morning yoga outdoor, golden light, peaceful serene",
-    f"{VITA_FACE}, luxury hotel suite, white robe, morning routine elegance",
+    f"{VITA_BASE}, beach golden hour, beige sports bra, looking over shoulder, warm backlight",
+    f"{VITA_BASE}, gym mirror selfie, black athletic outfit, natural gym lighting, candid",
+    f"{VITA_BASE}, luxury rooftop pool sunset, relaxed pose, summer lifestyle, cinematic",
+    f"{VITA_BASE}, morning outdoor yoga, white sports set, soft sunrise light, peaceful",
+    f"{VITA_BASE}, luxury hotel balcony, white linen, morning coffee, natural window light",
+    f"{VITA_BASE}, outdoor run in park, ponytail, athletic wear, motion blur background",
+    f"{VITA_BASE}, beach at sunset, sitting on sand, casual look, golden warm tones",
 ]
 
 STORY_THEMES = [
-    f"{VITA_FACE}, close up face portrait, gym background, natural light, vertical",
-    f"{VITA_FACE}, beach selfie, golden hour, vertical portrait, candid smile",
-    f"{VITA_FACE}, workout outfit, gym, mirror selfie, vertical close up",
-    f"{VITA_FACE}, luxury resort, poolside, vertical lifestyle photo",
-    f"{VITA_FACE}, morning coffee, sunlit room, natural beauty, vertical portrait",
+    f"{VITA_BASE}, close face selfie, gym background, natural light, vertical portrait",
+    f"{VITA_BASE}, beach candid shot, golden hour, vertical, slight smile, hair in wind",
+    f"{VITA_BASE}, mirror gym selfie, sports bra leggings, vertical, phone in frame",
+    f"{VITA_BASE}, poolside luxury resort, sunglasses, summer, vertical lifestyle",
+    f"{VITA_BASE}, morning coffee window, natural beauty, cozy, vertical portrait",
+    f"{VITA_BASE}, outdoor city walk, casual fashion, vertical, candid street photo",
+    f"{VITA_BASE}, spa day, face mask, bathroom mirror, natural no makeup look, vertical",
 ]
 
 REEL_THEMES = [
-    f"{VITA_FACE}, dynamic fitness pose, gym, dramatic lighting, action shot",
-    f"{VITA_FACE}, beachside at sunrise, athletic wear, movement, cinematic",
-    f"{VITA_FACE}, luxury penthouse view, fashion, confident, editorial",
-    f"{VITA_FACE}, outdoor workout, park, athletic, energetic pose",
-    f"{VITA_FACE}, poolside luxury, summer vibes, glamorous, lifestyle",
+    f"{VITA_BASE}, dynamic fitness pose, gym, dramatic natural light",
+    f"{VITA_BASE}, beach sunrise walk, athletic wear, natural movement",
+    f"{VITA_BASE}, luxury rooftop, fashion editorial, confident look",
+    f"{VITA_BASE}, outdoor workout park, energetic, motion",
+    f"{VITA_BASE}, poolside summer, relaxed glamour, lifestyle",
 ]
 
 CAPTIONS = [
@@ -67,7 +68,7 @@ def _generate_vita_image(prompt: str) -> bytes:
     headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
 
     payload = json.dumps({
-        "data": [prompt, "4-Step"],
+        "data": [prompt, "8-Step"],
         "event_data": None,
         "fn_index": 0,
         "trigger_id": 1,
