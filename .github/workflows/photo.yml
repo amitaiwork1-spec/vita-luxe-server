@@ -18,3 +18,4 @@ jobs:
         env:
           IG_USERNAME: ${{ secrets.IG_USERNAME }}
           IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
+          PEXELS_KEY: ${{ secrets.PEXELS_KEY }}
