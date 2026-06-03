@@ -84,7 +84,17 @@ def _ig_login():
     from instagrapi import Client
     cl = Client()
     cl.delay_range = [2, 5]
-    cl.login(IG_USERNAME, IG_PASSWORD)
+
+    # Try loading saved session first (avoids Instagram challenge)
+    session_file = Path("ig_session.json")
+    if session_file.exists():
+        logging.info("Loading saved Instagram session...")
+        cl.load_settings(session_file)
+        cl.login(IG_USERNAME, IG_PASSWORD)  # Reuse existing session tokens
+    else:
+        logging.info("No session file found, doing fresh login...")
+        cl.login(IG_USERNAME, IG_PASSWORD)
+
     return cl
 
 
