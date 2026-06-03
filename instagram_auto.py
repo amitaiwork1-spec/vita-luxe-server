@@ -1,14 +1,42 @@
 # -*- coding: utf-8 -*-
 """
-Instagram automation - fetches real lifestyle photos from Pexels API.
-Photos look completely authentic (they ARE real photos).
+Instagram automation for Vita Luxe.
+Uses SDXL Lightning (free HuggingFace Space) to generate consistent character images.
 """
-import os, json, logging, urllib.request, urllib.parse, random, sys, tempfile
+import os, json, logging, urllib.request, urllib.parse, random, sys, tempfile, time
 from pathlib import Path
 
-IG_USERNAME  = os.environ.get("IG_USERNAME", "")
-IG_PASSWORD  = os.environ.get("IG_PASSWORD", "")
-PEXELS_KEY   = os.environ.get("PEXELS_KEY", "")
+IG_USERNAME = os.environ.get("IG_USERNAME", "")
+IG_PASSWORD = os.environ.get("IG_PASSWORD", "")
+
+# ── Vita Luxe character base prompt ─────────────────────────────────────────
+VITA_BASE = (
+    "beautiful mixed ethnicity woman 25 years old, long dark wavy hair, "
+    "tan skin, fit athletic body, luxury lifestyle, "
+    "professional photography, 4K, realistic, instagram influencer"
+)
+
+PHOTO_THEMES = [
+    f"{VITA_BASE}, gym workout, athletic outfit, mirror selfie, natural lighting",
+    f"{VITA_BASE}, yoga on beach, golden hour, peaceful expression",
+    f"{VITA_BASE}, luxury resort pool, swimwear, vacation lifestyle",
+    f"{VITA_BASE}, morning coffee, luxury apartment, cozy morning routine",
+    f"{VITA_BASE}, outdoor run, athletic wear, sunrise, motion",
+    f"{VITA_BASE}, healthy meal prep, kitchen, colorful vegetables, clean eating",
+    f"{VITA_BASE}, luxury hotel room, morning stretching, white sheets",
+    f"{VITA_BASE}, outdoor cafe, sunglasses, relaxed fashion, city",
+]
+
+STORY_THEMES = [
+    f"{VITA_BASE}, selfie, gym mirror, athletic wear, vertical portrait",
+    f"{VITA_BASE}, smoothie bowl, healthy breakfast, close up, lifestyle",
+    f"{VITA_BASE}, beach sunset, relaxed, vertical shot, travel",
+    f"{VITA_BASE}, spa day, skincare routine, natural look, bathroom",
+    f"{VITA_BASE}, night workout, gym lights, determined, vertical",
+    f"{VITA_BASE}, casual outfit, city street, fashion, vertical portrait",
+    f"{VITA_BASE}, meditation, rooftop, morning light, peaceful, vertical",
+    f"{VITA_BASE}, luxury shopping, fashion bags, lifestyle, vertical",
+]
 
 CAPTIONS = [
     "Rise and shine. Make today count. 🌅",
@@ -26,75 +54,91 @@ CAPTIONS = [
 HASHTAGS = (
     "#LuxuryFitness #WellnessLifestyle #FitTravel #HealthyLiving "
     "#MotivationMonday #GymLife #TravelGoals #WellnessInspo "
-    "#ActiveLifestyle #FitnessJourney #LuxuryTravel #GlowUp"
+    "#ActiveLifestyle #FitnessJourney #LuxuryTravel #GlowUp "
+    "#VitaLuxe #FitnessGirls #HealthyGirl"
 )
 
-PHOTO_QUERIES = [
-    "fitness woman gym",
-    "yoga woman lifestyle",
-    "wellness woman luxury",
-    "athletic woman workout",
-    "healthy lifestyle woman",
-    "travel fitness woman",
-]
-
-STORY_QUERIES = [
-    "selfie woman fitness",
-    "woman workout gym",
-    "wellness lifestyle woman",
-    "woman yoga beach",
-    "healthy food woman",
-    "woman running outdoor",
-    "woman spa wellness",
-    "woman travel lifestyle",
-]
+SDXL_BASE = "https://ap123-sdxl-lightning.hf.space"
 
 
-def _fetch_pexels_photo(query, orientation="square"):
-    """Fetch a random photo from Pexels matching the query."""
-    if not PEXELS_KEY:
-        raise RuntimeError("PEXELS_KEY not set in environment!")
+def _generate_vita_image(prompt: str) -> bytes:
+    """Generate image via SDXL Lightning HuggingFace Space (free)."""
+    session = "vita" + str(random.randint(100000, 999999))
+    headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
 
-    page = random.randint(1, 5)
-    url  = (
-        f"https://api.pexels.com/v1/search"
-        f"?query={urllib.parse.quote(query)}"
-        f"&orientation={orientation}"
-        f"&per_page=15"
-        f"&page={page}"
-        f"&size=large"
+    # Step 1: Join the generation queue
+    payload = json.dumps({
+        "data": [prompt, "4-Step"],
+        "event_data": None,
+        "fn_index": 0,
+        "trigger_id": 1,
+        "session_hash": session,
+    }).encode()
+
+    req = urllib.request.Request(SDXL_BASE + "/queue/join",
+                                 data=payload, headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=20) as r:
+        join_resp = json.loads(r.read())
+    logging.info(f"  Queue joined: {join_resp.get('event_id', '?')[:16]}...")
+
+    # Step 2: Poll for result via SSE stream
+    req2 = urllib.request.Request(
+        SDXL_BASE + f"/queue/data?session_hash={session}",
+        headers={"User-Agent": "Mozilla/5.0", "Accept": "text/event-stream"},
     )
-    req = urllib.request.Request(url, headers={"Authorization": PEXELS_KEY, "User-Agent": "vita-luxe"})
-    with urllib.request.urlopen(req, timeout=15) as r:
-        data = json.loads(r.read())
+    img_url = None
+    with urllib.request.urlopen(req2, timeout=90) as r:
+        buffer = b""
+        while True:
+            chunk = r.read(8192)
+            if not chunk:
+                break
+            buffer += chunk
+            # Parse SSE events
+            for line in buffer.split(b"\n"):
+                if line.startswith(b"data:"):
+                    raw = line[5:].strip()
+                    if raw and raw != b"[DONE]":
+                        try:
+                            event = json.loads(raw)
+                            if event.get("msg") == "process_completed":
+                                output = event.get("output", {}).get("data", [])
+                                if output and isinstance(output[0], dict):
+                                    img_url = output[0].get("url")
+                        except Exception:
+                            pass
+            if img_url:
+                break
+            if len(buffer) > 500000:
+                break
 
-    photos = data.get("photos", [])
-    if not photos:
-        raise RuntimeError(f"No photos found for query: {query}")
+    if not img_url:
+        raise RuntimeError("No image URL returned from SDXL Lightning")
 
-    photo = random.choice(photos)
-    img_url = photo["src"]["large2x"]  # High quality
+    logging.info(f"  Image generated: {img_url[-40:]}")
 
-    req2 = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req2, timeout=30) as r:
-        return r.read()
+    # Step 3: Download the image
+    req3 = urllib.request.Request(img_url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req3, timeout=30) as r:
+        img_bytes = r.read()
+
+    if len(img_bytes) < 50000:
+        raise RuntimeError(f"Image too small: {len(img_bytes)} bytes")
+
+    return img_bytes
 
 
 def _ig_login():
     from instagrapi import Client
     cl = Client()
     cl.delay_range = [2, 5]
-
-    # Try loading saved session first (avoids Instagram challenge)
     session_file = Path("ig_session.json")
     if session_file.exists():
         logging.info("Loading saved Instagram session...")
         cl.load_settings(session_file)
-        cl.login(IG_USERNAME, IG_PASSWORD)  # Reuse existing session tokens
     else:
-        logging.info("No session file found, doing fresh login...")
-        cl.login(IG_USERNAME, IG_PASSWORD)
-
+        logging.info("No session file, doing fresh login...")
+    cl.login(IG_USERNAME, IG_PASSWORD)
     return cl
 
 
@@ -106,16 +150,13 @@ def _save_tmp(data: bytes, suffix=".jpg") -> str:
 
 
 def post_photo_job():
-    """Post a daily photo to Instagram using Pexels."""
-    query = random.choice(PHOTO_QUERIES)
-    logging.info(f"Fetching photo: '{query}'")
-
-    img  = _fetch_pexels_photo(query, orientation="square")
-    path = _save_tmp(img)
-
+    """Post a daily Vita Luxe photo to Instagram."""
+    theme = random.choice(PHOTO_THEMES)
+    logging.info(f"Generating Vita Luxe photo: {theme[:60]}...")
+    img  = _generate_vita_image(theme)
+    path = _save_tmp(img, suffix=".png")
     caption = random.choice(CAPTIONS) + "\n\n" + HASHTAGS
-    logging.info(f"Photo size: {len(img)//1024}KB | Logging into Instagram...")
-
+    logging.info(f"Image ready: {len(img)//1024}KB | Posting to Instagram...")
     cl    = _ig_login()
     media = cl.photo_upload(path, caption)
     logging.info(f"Photo posted! ID: {media.pk}")
@@ -123,14 +164,12 @@ def post_photo_job():
 
 
 def post_story_job():
-    """Post a story to Instagram using Pexels."""
-    query = random.choice(STORY_QUERIES)
-    logging.info(f"Fetching story photo: '{query}'")
-
-    img  = _fetch_pexels_photo(query, orientation="portrait")
-    path = _save_tmp(img)
-
-    logging.info(f"Story size: {len(img)//1024}KB | Logging into Instagram...")
+    """Post a Vita Luxe story to Instagram."""
+    theme = random.choice(STORY_THEMES)
+    logging.info(f"Generating Vita Luxe story: {theme[:60]}...")
+    img  = _generate_vita_image(theme)
+    path = _save_tmp(img, suffix=".png")
+    logging.info(f"Story ready: {len(img)//1024}KB | Posting to Instagram...")
     cl    = _ig_login()
     media = cl.photo_upload_to_story(path)
     logging.info(f"Story posted! ID: {media.pk}")
@@ -142,10 +181,6 @@ if __name__ == "__main__":
 
     if not IG_USERNAME or not IG_PASSWORD:
         logging.error("IG_USERNAME or IG_PASSWORD not set!")
-        sys.exit(1)
-
-    if not PEXELS_KEY:
-        logging.error("PEXELS_KEY not set! Get free key at pexels.com/api")
         sys.exit(1)
 
     mode = sys.argv[1] if len(sys.argv) > 1 else "photo"
