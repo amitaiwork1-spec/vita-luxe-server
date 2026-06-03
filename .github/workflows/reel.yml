@@ -1,0 +1,20 @@
+name: Post Reel
+on:
+  workflow_dispatch:
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install instagrapi Pillow requests moviepy
+      - name: Install ffmpeg
+        run: sudo apt-get install -y ffmpeg
+      - name: Post reel
+        run: python instagram_auto.py reel
+        env:
+          IG_USERNAME: ${{ secrets.IG_USERNAME }}
+          IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
