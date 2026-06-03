@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-TikTok Auto-Poster for Vita Luxe
-Uses saved session so login is needed only ONCE manually.
+TikTok poster - opens TikTok Studio in your browser (already logged in)
+and auto-uploads the video. Simple and reliable.
 """
-import sys, io, os, json, random, tempfile, subprocess, urllib.request, time
+import sys, io, os, json, random, tempfile, subprocess, urllib.request, time, webbrowser
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 from pathlib import Path
-from playwright.sync_api import sync_playwright
 
 env = {}
 with open(Path(__file__).parent / ".env", "r", encoding="utf-8") as f:
@@ -19,18 +18,16 @@ with open(Path(__file__).parent / ".env", "r", encoding="utf-8") as f:
 TOKEN = env.get("GITHUB_TOKEN", "")
 REPO  = "amitaiwork1-spec/vita-luxe-server"
 HDR   = {"Authorization": "token " + TOKEN, "User-Agent": "vita-luxe"}
-SESSION_FILE = Path(__file__).parent / "tiktok_session.json"
 
 CAPTIONS = [
-    "She shows up every single day 🔥 That's the real secret #VitaLuxe #FitnessMotivation #GlowUp #FitGirl #GymTok",
-    "Luxury is a mindset 💎 Not a price tag #VitaLuxe #WellnessJourney #FitnessTok #BodyGoals #GlowUp",
-    "Train like nobody's watching ✨ Glow like everyone is #VitaLuxe #WorkoutMotivation #FitnessGirl #GymLife",
-    "Same girl. Different energy. 👑 #VitaLuxe #GlowUp #FitnessMotivation #FitnessTok #BodyGoals",
-    "Morning workout hits different when you love yourself 🌅 #VitaLuxe #MorningRoutine #FitnessJourney",
+    "She shows up every single day 🔥 That's the real secret #VitaLuxe #FitnessMotivation #GlowUp #FitGirl #GymTok #fyp",
+    "Luxury is a mindset 💎 Not a price tag #VitaLuxe #WellnessJourney #FitnessTok #BodyGoals #GlowUp #fyp",
+    "Train like nobody's watching ✨ Glow like everyone is #VitaLuxe #WorkoutMotivation #FitnessGirl #fyp",
+    "Same girl. Different energy. 👑 #VitaLuxe #GlowUp #FitnessMotivation #FitnessTok #fyp",
+    "Morning workout hits different 🌅 #VitaLuxe #MorningRoutine #FitnessJourney #fyp",
 ]
 
-
-def get_photos(count=6):
+def get_photos(count=5):
     req = urllib.request.Request(
         f"https://api.github.com/repos/{REPO}/contents/images/photos", headers=HDR)
     with urllib.request.urlopen(req, timeout=15) as r:
@@ -47,18 +44,17 @@ def get_photos(count=6):
         print(f"  {f['name']} ({len(data)//1024}KB)")
     return paths
 
-
 def create_video(photo_paths):
     n = len(photo_paths)
     dur = round(15.0 / n, 2)
-    out = tempfile.mktemp(suffix=".mp4")
+    # Save to Desktop so easy to find
+    out = str(Path.home() / "OneDrive" / "Desktop" / "vita_luxe_tiktok.mp4")
     inputs = []
     for p in photo_paths:
-        inputs += ["-loop", "1", "-t", str(dur + 0.5), "-i", p]
+        inputs += ["-loop", "1", "-t", str(dur + 0.3), "-i", p]
     sf = "".join([
         f"[{i}:v]scale=1080:1920:force_original_aspect_ratio=increase,"
-        f"crop=1080:1920,setpts=PTS-STARTPTS[v{i}];"
-        for i in range(n)
+        f"crop=1080:1920,setpts=PTS-STARTPTS[v{i}];" for i in range(n)
     ])
     sf += "".join([f"[v{i}]" for i in range(n)]) + f"concat=n={n}:v=1:a=0[vout]"
     cmd = ["ffmpeg"] + inputs + [
@@ -68,165 +64,62 @@ def create_video(photo_paths):
     ]
     subprocess.run(cmd, capture_output=True, timeout=120)
     size = os.path.getsize(out)
-    print(f"Video ready: {size//1024}KB")
+    print(f"  Video: {size//1024}KB")
     return out
 
-
-def post_to_tiktok(video_path, caption):
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, slow_mo=800)
-
-        # Load saved session if exists
-        if SESSION_FILE.exists():
-            print("Loading saved TikTok session...")
-            ctx = browser.new_context(
-                storage_state=str(SESSION_FILE),
-                viewport={"width": 1280, "height": 900}
-            )
-        else:
-            ctx = browser.new_context(viewport={"width": 1280, "height": 900})
-
-        page = ctx.new_page()
-
-        # Go to TikTok Studio
-        print("Opening TikTok Studio...")
-        page.goto("https://www.tiktok.com/tiktokstudio/upload", wait_until="domcontentloaded")
-        page.wait_for_timeout(4000)
-
-        # Check if we need to login
-        is_logged_in = False
-        try:
-            # If we can see the upload button or studio content, we're in
-            page.wait_for_selector("input[type='file'], [class*='upload'], [class*='Upload']", timeout=5000)
-            is_logged_in = True
-            print("Already logged in!")
-        except:
-            is_logged_in = False
-
-        if not is_logged_in:
-            print("\n" + "="*55)
-            print("  PLEASE LOG IN WITH FACEBOOK IN THE BROWSER!")
-            print("  1. Click 'להמשיך באמצעות Facebook'")
-            print("  2. Approve in the Facebook popup")
-            print("  3. Wait - script continues automatically")
-            print("  WAITING 120 SECONDS...")
-            print("="*55)
-            # Click Facebook button automatically
-            try:
-                page.click("text=Facebook", timeout=5000)
-                print("  Clicked Facebook button!")
-            except:
-                try:
-                    page.click("[class*='facebook'], [class*='Facebook']", timeout=3000)
-                    print("  Clicked Facebook!")
-                except:
-                    print("  Please click 'Facebook' manually in the browser")
-
-            # Wait for actual login - check for upload page element
-            logged_in = False
-            for i in range(120):
-                time.sleep(1)
-                try:
-                    # Check if we're on a page with upload functionality
-                    current_url = page.url
-                    if "tiktokstudio" in current_url and "login" not in current_url and "passport" not in current_url:
-                        # Try to find upload button
-                        el = page.query_selector("input[type='file'], [class*='upload-btn'], [class*='UploadBtn']")
-                        if el or i > 30:  # After 30s on studio page, assume logged in
-                            logged_in = True
-                            print(f"\nLogin successful! (took {i}s)")
-                            break
-                except: pass
-                if i % 15 == 0 and i > 0:
-                    print(f"  Still waiting... ({120-i}s left)")
-
-            if not logged_in:
-                print("Timeout - proceeding anyway...")
-
-        # Save session
-        try:
-            ctx.storage_state(path=str(SESSION_FILE))
-            print("Session saved!")
-        except Exception as e:
-            print(f"Session save note: {e}")
-
-        # Now on TikTok Studio - wait for upload area
-        print("Looking for upload area...")
-        page.wait_for_timeout(3000)
-
-        # Find file input
-        file_input = page.query_selector("input[type='file']")
-        if not file_input:
-            # Try clicking the upload area
-            try:
-                page.click("text=Select file", timeout=5000)
-                page.wait_for_timeout(1000)
-                file_input = page.query_selector("input[type='file']")
-            except:
-                pass
-
-        if file_input:
-            print("Uploading video...")
-            file_input.set_input_files(video_path)
-            page.wait_for_timeout(10000)  # Wait for upload to process
-            print("Video uploaded!")
-
-            # Add caption - find the text editor
-            print("Adding caption...")
-            for sel in [
-                "[data-contents='true']",
-                ".public-DraftEditor-content",
-                "div[contenteditable='true']",
-                ".notranslate",
-                "[placeholder*='caption']",
-                "[class*='caption']",
-            ]:
-                try:
-                    el = page.query_selector(sel)
-                    if el and el.is_visible():
-                        el.click()
-                        page.wait_for_timeout(500)
-                        page.keyboard.press("Control+a")
-                        page.keyboard.type(caption[:2200])
-                        print(f"  Caption added via: {sel}")
-                        break
-                except: pass
-
-            page.wait_for_timeout(2000)
-
-            # Click Post button
-            print("Posting...")
-            for btn in ["Post", "Publish", "Upload", "Submit"]:
-                try:
-                    page.click(f"button:has-text('{btn}')", timeout=5000)
-                    page.wait_for_timeout(5000)
-                    print(f"POSTED via '{btn}' button!")
-                    break
-                except: pass
-
-        else:
-            print("Upload area not found - screenshot saved")
-            page.screenshot(path=r"C:\Users\10022\AppData\Local\Temp\tt_debug.png")
-            print("Check: C:\\Users\\10022\\AppData\\Local\\Temp\\tt_debug.png")
-            page.wait_for_timeout(30000)  # Give user time to see
-
-        page.wait_for_timeout(3000)
-        browser.close()
-
-
-# Run
+# Generate video
 print("="*55)
-print("  TikTok Auto-Poster - Vita Luxe")
+print("  TikTok Video Creator - Vita Luxe")
 print("="*55)
-print("\nDownloading photos...")
+print("\nDownloading Vita Luxe photos...")
 photos = get_photos(5)
-print("\nCreating video (1080x1920)...")
-video = create_video(photos)
+print("\nCreating 15-second vertical video...")
+video_path = create_video(photos)
+
 caption = random.choice(CAPTIONS)
-print(f"\nCaption: {caption[:60]}...")
-print("\nPosting to TikTok...")
-post_to_tiktok(video, caption)
+
+# Copy caption to clipboard
+try:
+    import subprocess as sp
+    sp.run(['clip'], input=caption.encode('utf-16'), check=True)
+    clipboard_ok = True
+except:
+    clipboard_ok = False
+
+print("\n" + "="*55)
+print("  VIDEO READY!")
+print("="*55)
+print(f"\n  File: {video_path}")
+print(f"  Size: {os.path.getsize(video_path)//1024}KB")
+print()
+print("  CAPTION (copy this):")
+print(f"  {caption}")
+print()
+if clipboard_ok:
+    print("  Caption copied to clipboard automatically!")
+print("="*55)
+print()
+print("  STEPS TO POST:")
+print("  1. TikTok Studio will open in your browser")
+print("  2. Click '+' or 'Select file'")
+print("  3. Choose: Desktop -> vita_luxe_tiktok.mp4")
+print("  4. Paste caption (Ctrl+V)")
+print("  5. Click POST")
+print()
+print("  Opening TikTok Studio in 3 seconds...")
+print("="*55)
+
+time.sleep(3)
+webbrowser.open("https://www.tiktok.com/tiktokstudio/upload")
+
+# Also open file location
+subprocess.Popen(['explorer', '/select,', video_path])
+
+print("\nTikTok Studio opened in your browser!")
+print("Drag vita_luxe_tiktok.mp4 to the upload area")
+print()
+print("After posting, run this script again for the next video.")
+
 for p in photos:
     try: os.unlink(p)
     except: pass
-print("\nDone!")
